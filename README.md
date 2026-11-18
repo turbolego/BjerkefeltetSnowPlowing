@@ -21,11 +21,24 @@ Bærum, and posts the plow status to [Bluesky](https://bsky.app).
 2. POSTs `/Home/GetVisits` with `StatusGroupId: 80` and parses all road /
    maintenance segments (WKT LINESTRING geometry + `LatestVisitTime`).
 3. Keeps only the segments whose geometry comes within 150 m of Bjerkehaugen 6.
-4. Computes the most recent plow time in the area and posts a summary:
+4. Computes the most recent plow time in the area and composes a post:
    - How many segments are nearby
    - Most recent / oldest plow time
    - How many segments have no recorded plow visit at all
    - A link to the live PlogNorge map
+5. Renders an annotated map image (`render_map.py`) and attaches it to the
+   post:
+   - Base map: OSM tiles (fetched with 0.4 s spacing to stay within OSM's
+     tile usage policy). Blocked "418" placeholder tiles are detected by
+     their colour-bucket signature and rejected.
+   - If raster tiles are unavailable (e.g. the CI IP is blocked by OSM),
+     it falls back to a clean vector schematic so a post image always
+     exists.
+   - Overlay: the segments in PlogNorge status colours, a white 150 m ring
+     around the address, the address marker, a Norwegian title/subtitle,
+     a legend and attribution.
+   - `assets/sample_map_real_tiles.png` shows the image with a real street
+     base (PlogNorge's own tile server) as a reference.
 
 Status thresholds (from PlogNorge `GetStatusGroups`):
 | Color | Meaning |

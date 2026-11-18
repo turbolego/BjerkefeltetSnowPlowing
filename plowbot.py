@@ -157,6 +157,8 @@ def segments_near_target(all_segments: list[dict]) -> list[dict]:
                     "last_visit_raw": seg.get("LatestVisitTime"),
                     "last_visit": parse_visit_time(seg.get("LatestVisitTime")),
                     "distance_m": round(dm, 1),
+                    "d": round(dm, 1),          # alias used by render_map
+                    "pts": pts,                  # [(lng, lat), ...] used by render_map
                 }
             )
     out.sort(key=lambda x: x["distance_m"])
@@ -233,18 +235,52 @@ def dry_run(text: str) -> bool:
     return True
 
 
-def post_to_bluesky(text: str) -> bool:
+def encode_image_for_bluesky(image_path: str) -> bytes:
+    """Re-encode a map image as JPEG under Bluesky's practical size limit."""
+    from PIL import Image
+
+    im = Image.open(image_path).convert("RGB")
+    if max(im.size) > 2048:  # keep it small enough to be a nice embed
+        im.thumbnail((2048, 2048))
+    import io as _io
+    buf = _io.BytesIO()
+    im.save(buf, format="JPEG", quality=85)
+    return buf.getvalue()
+
+
+def post_to_bluesky(text: str, image_path: str | None = None,
+                    alt_text: str = "") -> bool:
     if not BSKY_HANDLE or not BSKY_PASSWORD:
         logging.warning(
             "BSKY_HANDLE/BSKY_PASSWORD not set - skipping Bluesky post"
         )
         return False
-    from atproto import Client  # lazy: keep dry runs dependency-free
+    from atproto import Client, models  # lazy: keep dry runs dependency-free
 
     client = Client()
     client.login(BSKY_HANDLE.strip(), BSKY_PASSWORD.strip())
-    client.send_post(text)
-    logging.info("Posted to Bluesky as %s", BSKY_HANDLE)
+
+    if not image_path:
+        client.send_post(text)
+        logging.info("Posted text to Bluesky as %s", BSKY_HANDLE)
+        return True
+
+    image_bytes = encode_image_for_bluesky(image_path)
+    blob = client.upload_blob(image_bytes).blob
+    client.app.bsky.feed.post.create(
+        repo=client.me.did,
+        record=models.AppBskyFeedPost.Record(
+            text=text,
+            embed=models.AppBskyEmbedImages.Main(
+                images=[
+                    models.AppBskyEmbedImages.Image(
+                        image=blob, alt=alt_text
+                    )
+                ]
+            ),
+        ),
+    )
+    logging.info("Posted to Bluesky (with map image) as %s", BSKY_HANDLE)
     return True
 
 
@@ -278,10 +314,29 @@ def main() -> int:
         )
 
     text = build_post_text(near)
+
+    # Render the annotated map image for the post (best-effort: if OSM tiles
+    # are blocked the renderer falls back to a clean vector schematic).
+    image_path = None
+    if near:
+        try:
+            from render_map import render_map
+            image_path = render_map(near, "plowmap.png")
+        except Exception as e:
+            logging.warning("Map image render failed, posting text only: %s", e)
+
+    alt_text = (
+        f"Snow-plow status map of Bjerkehaugen 6, Lommedalen, Bærum, showing "
+        f"{len(near)} road segments within 150 m, most marked red (not plowed "
+        f"recently), with a white 150-metre circle around the address."
+    )
+
     if args.dry_run or args.no_post:
         ok = dry_run(text)
+        if image_path:
+            logging.info("Map image saved to %s (dry run)", image_path)
     else:
-        ok = post_to_bluesky(text) or dry_run(text)
+        ok = post_to_bluesky(text, image_path, alt_text) or dry_run(text)
     return 0 if ok else 1
 
 

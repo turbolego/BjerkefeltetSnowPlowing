@@ -13,6 +13,7 @@ requests = "*"
 python-dotenv = "*"
 atproto = "*"
 cryptography = ">=48.0.1"
+Pillow = "*"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
