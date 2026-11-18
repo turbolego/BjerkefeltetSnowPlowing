@@ -181,9 +181,12 @@ def status_label(seg: dict) -> str:
 
 def format_days_since(dt) -> str:
     hours = (datetime.now(timezone.utc) - dt).total_seconds() / 3600
-    if hours < 24:
-        return f"{int(hours)} hours"
-    return f"{hours / 24:.1f} days"
+    if hours < 1:
+        return "under en time"
+    if hours < 48:
+        return f"{hours:.0f} timer"
+    days = hours / 24
+    return f"{round(days, 1)} dager".replace(".", ",")
 
 
 def build_post_text(near: list[dict]) -> str:
