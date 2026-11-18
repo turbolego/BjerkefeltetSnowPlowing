@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "bjerkefeltet-snow-plow-bot"
+version = "1.0.0"
+description = "Monitors snow plow activity near Bjerkehaugen 6 and posts updates to Bluesky"
+authors = ["Turbolego <turbolego@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+keywords = ["snow", "plow", "bjerkefeltet", "baerum", "bluesky"]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+requests = "*"
+python-dotenv = "*"
+atproto = "*"
+cryptography = ">=48.0.1"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
