@@ -1,4 +1,4 @@
 requests>=2.32
 python-dotenv>=1.0
-atproto>=0.6
+atproto>=0.0.70
 cryptography>=48.0.1
