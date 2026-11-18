@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Secrets / local credentials
+.env
+.env.local
+
+# Editors
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Bot scratch output
+*.log
+state.json

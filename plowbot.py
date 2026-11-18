@@ -202,7 +202,7 @@ def build_post_text(near: list[dict]) -> str:
             f"🚜 Plog-status for {TARGET_NAME} ({now_local:%Y-%m-%d %H:%M} CET):",
             "",
             f"• {len(near)} road segments within {TARGET_RADIUS_M} m",
-            f"• Most recent plow: {last:%d.%m.%Y kl %H.%M} (for {format_days_since(last)} since)",
+            f"• Most recent plow: {last:%d.%m.%Y kl %H.%M} ({format_days_since(last)} siden)",
             f"• Oldest plow in area: {oldest:%d.%m.%Y kl %H.%M}",
         ]
         if never:

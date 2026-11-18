@@ -1,0 +1,46 @@
+name: Bjerkefeltet Snow Plow Bot
+
+on:
+  # Winter (Nov-Mar, CET = UTC+1): run 4x/day to catch plow passes.
+  # Spring/Autumn (Oct, Apr): run once a day.
+  schedule:
+    # Winter: 06:00, 12:00, 18:00, 00:00 CET
+    - cron: "5 5,11,17,23 * 11,12,1,2,3 *"
+    # Spring/Autumn: 08:00 CET daily
+    - cron: "5 7 * 4,5,9,10 *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  snow-plow-monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run snow plow bot
+        env:
+          BSKY_HANDLE: ${{ secrets.BSKY_HANDLE }}
+          BSKY_PASSWORD: ${{ secrets.BSKY_PASSWORD }}
+        run: |
+          # If no Bluesky secrets are set, run a dry-run so the job
+          # still succeeds and logs the would-be post.
+          if [ -n "$BSKY_HANDLE" ] && [ -n "$BSKY_PASSWORD" ]; then
+            python plowbot.py
+          else
+            echo "No BSKY_HANDLE/BSKY_PASSWORD secrets set; dry-run only."
+            python plowbot.py --dry-run
+          fi
