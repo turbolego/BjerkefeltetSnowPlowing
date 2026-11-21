@@ -88,7 +88,7 @@ def fetch_base_map():
     print(f"  tile center [{x_t},{y_t}] for Bjerkehaugen 6")
     
     sources=[
-        f"https://tile.openstreetmap.org/{ZOOM}"   # Standard OSM tiles
+        f"https://tile.opentopomap.org/{ZOOM}"   # OpenTopoMap (OSM blocked)
     ]
     tiles=[]
     for src_url in sources:
