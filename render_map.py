@@ -199,14 +199,26 @@ def render_map(segments, out_path="plowmap.png"):
     d.text((cx_box,title_cy),title,font=ft,anchor="mm",fill=(10,10,10))
     d.text((cx_box,sub_cy),sub,font=fs,anchor="mm",fill=(40,40,40))
     
-    # Legend
+    # Legend (in a box matching the top-left style: white bg, black border)
     leg=[((226,28,28),"Ikke pløyd nylig (>12t)"),
          ((48,110,230),"Pløyd siste 12t"),
          ((40,190,70),"Pløyd siste 4t")]
-    lx,ly=pad,IMG_H-pad-70
+    leg_widths=[d.textbbox((0,0),lb,font=ft)[2] for (clr,lb) in leg]
+    max_label_w=max(leg_widths)
+    swatch_w=16; swatch_gap=8; pad2=12
+    row_h=22; line_gap=4
+    content_w=swatch_w+swatch_gap+max_label_w
+    content_h=len(leg)*row_h+(len(leg)-1)*line_gap
+    bx0=pad
+    by0=IMG_H-pad-(content_h+pad2*2)
+    bx1=bx0+content_w+pad2*2
+    by1=by0+content_h+pad2*2
+    d.rectangle([bx0,by0,bx1,by1],fill=(255,255,255),outline=(20,20,20),width=2)
     for i,(clr,lb) in enumerate(leg):
-        yy=ly+i*22; d.line([(lx,yy+10),lx+16,yy+10],fill=clr,width=5)
-        d.text((lx+24,yy),lb,font=ft,fill=(20,20,20))
+        row_top=by0+pad2+i*(row_h+line_gap)
+        row_mid=row_top+row_h//2
+        d.line([(bx0+pad2,row_mid),(bx0+pad2+swatch_w,row_mid)],fill=clr,width=5)
+        d.text((bx0+pad2+swatch_w+swatch_gap,row_mid),lb,font=ft,anchor="lm",fill=(20,20,20))
     
     # Attribution
     a="© OSM-contributorer | PlogNorge"; ab=d.textbbox((0,0),a,font=ft); aw=ab[2]-ab[0]
