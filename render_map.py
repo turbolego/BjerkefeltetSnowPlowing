@@ -82,7 +82,8 @@ def _is_real_tile(content: bytes) -> bool:
 
 def fetch_base_map():
     """Download OSM-compatible tiles (try osm.fr mirror first for reliability)."""
-    x_t,y_t=69360,38086
+    # Bjerkehaugen 6 (59.9636663, 10.4678833) at z17
+    x_t, y_t = 69347, 38089
     sources=[
         f"https://a.tile.openstreetmap.fr/osmfr/{ZOOM}",  # FR mirror
         f"https://tile.openstreetmap.org/{ZOOM}",          # main
