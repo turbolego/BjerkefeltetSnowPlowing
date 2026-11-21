@@ -84,9 +84,11 @@ def fetch_base_map():
     """Download OSM-compatible tiles (try osm.fr mirror first for reliability)."""
     # Bjerkehaugen 6 (59.9636663, 10.4678833) at z17
     x_t, y_t = 69347, 38089
+    # Try multiple sources in order: OSM-FR is most permissive, then others
     sources=[
-        f"https://a.tile.openstreetmap.fr/osmfr/{ZOOM}",  # FR mirror
-        f"https://tile.openstreetmap.org/{ZOOM}",          # main
+        f"https://a.tile.openstreetmap.fr/osmfr/{ZOOM}",   # French mirror (most reliable)
+        f"https://tile.opentopomap.org/{ZOOM}",             # OpenTopoMap fallback
+        f"https://tile.openstreetmap.de/{ZOOM}",            # German mirror fallback
     ]
     tiles=[]
     for src_url in sources:
