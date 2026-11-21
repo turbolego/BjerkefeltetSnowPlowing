@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   snow-plow-monitor:
@@ -43,4 +43,20 @@ jobs:
           else
             echo "No BSKY_HANDLE/BSKY_PASSWORD secrets set; dry-run only."
             python plowbot.py --dry-run
+          fi
+
+      - name: Regenerate map image
+        run: |
+          python render_map.py
+
+      - name: Commit updated map to main (triggers GitHub Pages)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add plowmap.png
+          if git diff --cached --quiet; then
+            echo "No changes to plowmap.png — skipping commit."
+          else
+            git commit -m "Update plowmap.png (auto)" 
+            git push origin main
           fi
