@@ -184,14 +184,14 @@ def render_map(segments, out_path="plowmap.png"):
     tb=d.textbbox((0,0),title,font=ft); tw,th=tb[2]-tb[0],tb[3]-tb[1]
     sb=d.textbbox((0,0),sub,font=fs); sw,sh=sb[2]-sb[0],sb[3]-sb[1]
     pad=12
-    box_w = max(tw,sw) + pad*2
-    box_h = th + sh + pad*2
-    d.rectangle([pad,pad,pad+box_w,pad+box_h],fill=(255,255,255),outline=(20,20,20),width=2)
-    # Center text horizontally inside the box
-    title_x = pad + (box_w - pad*2 - tw) // 2
-    sub_x = pad + (box_w - pad*2 - sw) // 2
-    d.text((title_x,pad+2),title,font=ft,fill=(10,10,10))
-    d.text((sub_x,pad+th+6),sub,font=fs,fill=(40,40,40))
+    box_x0,box_y0=pad,pad
+    box_x1=pad+max(tw,sw)+pad*2
+    box_y1=pad+th+sh+pad*2
+    d.rectangle([box_x0,box_y0,box_x1,box_y1],fill=(255,255,255),outline=(20,20,20),width=2)
+    # Center both lines on the box's true horizontal center (anchor="ma" = middle, ascender)
+    cx_box=(box_x0+box_x1)//2
+    d.text((cx_box,box_y0+2),title,font=ft,anchor="ma",fill=(10,10,10))
+    d.text((cx_box,box_y0+th+6),sub,font=fs,anchor="ma",fill=(40,40,40))
     
     # Legend
     leg=[((226,28,28),"Ikke pløyd nylig (>12t)"),
