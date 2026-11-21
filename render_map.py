@@ -26,23 +26,11 @@ def lonlat_to_mercator_m(lng, lat):
     return x, y
 
 def mercator_to_pixel(mx, my, img_w, img_h):
-    """Convert mercator meters to LOCAL pixel position centered on TARGET."""
-    # Calculate scale: pixels per meter based on target area coverage
-    # At ZOOM level, 3 tiles cover approximately this many meters
-    n = 2 ** ZOOM
+    """Convert mercator meters to pixel position in the full image (global mapping)."""
+    # Global mapping: world extent to image dimensions
     world = 2 * math.pi * 6378137.0
-    tile_m = world / n
-    # 3x3 tile grid covers roughly this ground distance
-    ground_span_m = 3 * tile_m / math.cos(math.radians(TARGET["lat"]))
-    px_per_m = img_w / ground_span_m
-    
-    # Convert to local coordinates relative to target
-    t_mx, t_my = lonlat_to_mercator_m(TARGET["lng"], TARGET["lat"])
-    dx = mx - t_mx
-    dy = my - t_my
-    # Image center is at (img_w/2, img_h/2)
-    px_x = int(img_w/2 + dx * px_per_m)
-    py_y = int(img_h/2 - dy * px_per_m)  # invert Y
+    px_x = int((mx + world/2) / world * img_w)
+    py_y = int((world/2 - my) / world * img_h)  # invert Y
     return px_x, py_y
 
 def haversine_m(lat1, lng1, lat2, lng2):
@@ -100,9 +88,7 @@ def fetch_base_map():
     print(f"  tile center [{x_t},{y_t}] for Bjerkehaugen 6")
     
     sources=[
-        f"https://a.tile.openstreetmap.fr/osmfr/{ZOOM}",   # FR mirror
-        f"https://tile.opentopomap.org/{ZOOM}",             # OpenTopoMap fallback
-        f"https://tile.openstreetmap.de/{ZOOM}",            # German mirror fallback
+        f"https://tile.openstreetmap.org/{ZOOM}"   # Standard OSM tiles
     ]
     tiles=[]
     for src_url in sources:
