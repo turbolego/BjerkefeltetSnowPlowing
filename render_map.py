@@ -25,12 +25,34 @@ def lonlat_to_mercator_m(lng, lat):
     y = math.log(math.tan(math.pi/4 + math.radians(lat)/2)) * 6378137.0
     return x, y
 
-def mercator_to_pixel(mx, my, img_w, img_h):
-    """Convert mercator meters to pixel position in the full image (global mapping)."""
-    # Global mapping: world extent to image dimensions
+def mercator_to_pixel(mx, my, img_w, img_h, target_mx=None, target_my=None):
+    """Convert mercator meters to LOCAL pixel position centered on TARGET.
+    
+    Uses a local coordinate system where the 3x3 tile grid (768px raw) 
+    is centered on the target point.
+    """
+    # If no target provided, calculate from TARGET constant
+    if target_mx is None or target_my is None:
+        target_mx, target_my = lonlat_to_mercator_m(TARGET["lng"], TARGET["lat"])
+    
+    # Scale: 3 tiles = ~768px covers about 350m at z17 near Oslo
+    # At zoom 17, one tile = 256px covers approximately 117m at latitude 59.96°N
+    n = 2 ** ZOOM
     world = 2 * math.pi * 6378137.0
-    px_x = int((mx + world/2) / world * img_w)
-    py_y = int((world/2 - my) / world * img_h)  # invert Y
+    tile_m = world / n
+    ground_per_tile = tile_m / math.cos(math.radians(TARGET["lat"]))
+    
+    # 3x3 tile grid = 768px raw, resize to IMG_WxIMG_H
+    raw_size = 3 * 256  # 768
+    scale = img_w / raw_size  # 600/768 = 0.78125
+    
+    # Local offset from target in meters
+    dx = mx - target_mx
+    dy = my - target_my
+    
+    # Convert to pixels: center is at img_w/2, img_h/2
+    px_x = int(img_w/2 + dx / ground_per_tile * 256 * scale)
+    py_y = int(img_h/2 - dy / ground_per_tile * 256 * scale)  # invert Y
     return px_x, py_y
 
 def haversine_m(lat1, lng1, lat2, lng2):
@@ -138,7 +160,7 @@ def render_map(segments, out_path="plowmap.png"):
     
     # Calculate target pixel position in the resized image
     t_merc_x, t_merc_y = lonlat_to_mercator_m(TARGET["lng"], TARGET["lat"])
-    cx, cy = mercator_to_pixel(t_merc_x, t_merc_y, IMG_W, IMG_H)
+    cx, cy = mercator_to_pixel(t_merc_x, t_merc_y, IMG_W, IMG_H, t_merc_x, t_merc_y)
     print(f"  target maps to pixel ({cx},{cy}) in {IMG_W}x{IMG_H} image")
     
     # Draw segments using consistent coordinate system
@@ -147,7 +169,7 @@ def render_map(segments, out_path="plowmap.png"):
         pts=[]
         for lng,la in seg["pts"]:
             mx,my = lonlat_to_mercator_m(lng,la)
-            sx,sy = mercator_to_pixel(mx, my, IMG_W, IMG_H)
+            sx,sy = mercator_to_pixel(mx, my, IMG_W, IMG_H, t_merc_x, t_merc_y)
             pts.append((sx,sy))
         if len(pts)>1:
             d.line(pts, fill=color, width=3, joint="curve")
