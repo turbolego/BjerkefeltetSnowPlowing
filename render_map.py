@@ -26,33 +26,33 @@ def lonlat_to_mercator_m(lng, lat):
     return x, y
 
 def mercator_to_pixel(mx, my, img_w, img_h, target_mx=None, target_my=None):
-    """Convert mercator meters to LOCAL pixel position centered on TARGET.
+    """Convert mercator meters to pixel position in the 3x3 tile grid image.
     
-    Uses a local coordinate system where the 3x3 tile grid (768px raw) 
-    is centered on the target point.
+    Uses exact tile-grid geometry matching fetch_base_map() to guarantee
+    segments align precisely with the background tiles.
     """
-    # If no target provided, calculate from TARGET constant
     if target_mx is None or target_my is None:
         target_mx, target_my = lonlat_to_mercator_m(TARGET["lng"], TARGET["lat"])
     
-    # Scale: 3 tiles = ~768px covers about 350m at z17 near Oslo
-    # At zoom 17, one tile = 256px covers approximately 117m at latitude 59.96°N
     n = 2 ** ZOOM
     world = 2 * math.pi * 6378137.0
-    tile_m = world / n
-    ground_per_tile = tile_m / math.cos(math.radians(TARGET["lat"]))
-    
-    # 3x3 tile grid = 768px raw, resize to IMG_WxIMG_H
-    raw_size = 3 * 256  # 768
+    tile_size = world / n
+    raw_size = 3 * 256  # 768px raw grid
     scale = img_w / raw_size  # 600/768 = 0.78125
     
-    # Local offset from target in meters
-    dx = mx - target_mx
-    dy = my - target_my
+    # Grid origin = top-left of tile (x_t-1, y_t-1), matching fetch_base_map
+    x_t = int((target_mx + world/2) / tile_size)
+    y_t = int((world/2 - target_my) / tile_size)
+    x_origin = x_t - 1
+    y_origin = y_t - 1
     
-    # Convert to pixels: center is at img_w/2, img_h/2
-    px_x = int(img_w/2 + dx / ground_per_tile * 256 * scale)
-    py_y = int(img_h/2 - dy / ground_per_tile * 256 * scale)  # invert Y
+    # Fractional position within the 3x3 grid
+    frac_x = (mx + world/2) / tile_size - x_origin
+    frac_y = (world/2 - my) / tile_size - y_origin
+    
+    # Convert to pixels: raw grid position * scale
+    px_x = int(frac_x * 256 * scale)
+    py_y = int(frac_y * 256 * scale)
     return px_x, py_y
 
 def haversine_m(lat1, lng1, lat2, lng2):
