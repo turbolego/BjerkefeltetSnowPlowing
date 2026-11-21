@@ -25,15 +25,25 @@ def lonlat_to_mercator_m(lng, lat):
     y = math.log(math.tan(math.pi/4 + math.radians(lat)/2)) * 6378137.0
     return x, y
 
-def mercator_to_pixel(mx, my, raw_w, raw_h):
-    """Convert mercator meters to pixel position in raw grid."""
+def mercator_to_pixel(mx, my, img_w, img_h):
+    """Convert mercator meters to LOCAL pixel position centered on TARGET."""
+    # Calculate scale: pixels per meter based on target area coverage
+    # At ZOOM level, 3 tiles cover approximately this many meters
     n = 2 ** ZOOM
     world = 2 * math.pi * 6378137.0
-    # World extent in pixels at this zoom
-    px_x = (mx + world/2) / world * raw_w
-    # Invert Y (mercator y increases northward, image y increases downward)
-    py_y = (world/2 - my) / world * raw_h
-    return int(px_x), int(py_y)
+    tile_m = world / n
+    # 3x3 tile grid covers roughly this ground distance
+    ground_span_m = 3 * tile_m / math.cos(math.radians(TARGET["lat"]))
+    px_per_m = img_w / ground_span_m
+    
+    # Convert to local coordinates relative to target
+    t_mx, t_my = lonlat_to_mercator_m(TARGET["lng"], TARGET["lat"])
+    dx = mx - t_mx
+    dy = my - t_my
+    # Image center is at (img_w/2, img_h/2)
+    px_x = int(img_w/2 + dx * px_per_m)
+    py_y = int(img_h/2 - dy * px_per_m)  # invert Y
+    return px_x, py_y
 
 def haversine_m(lat1, lng1, lat2, lng2):
     R=6371000.0; p1,p2=math.radians(lat1),math.radians(lat2)
