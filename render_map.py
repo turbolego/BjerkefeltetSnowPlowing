@@ -4,6 +4,7 @@
 import io, math, re, time
 from datetime import datetime, timezone
 import requests
+import statistics
 from PIL import Image, ImageDraw, ImageFont
 
 TARGET = {"lat": 59.9636663, "lng": 10.4678833}
@@ -66,22 +67,50 @@ def _tile_color_buckets(content: bytes) -> int:
     except: return 0
 
 def _is_real_tile(content: bytes) -> bool:
-    return len(content)>500 and content[:4]==b"\x89PNG" and _tile_color_buckets(content)>=40
+    """A real OSM tile has high pixel variance (>1000); blocked placeholders are uniform."""
+    if len(content)<500 or content[:4]!=b"\x89PNG": return False
+    try:
+        im=Image.open(io.BytesIO(content)).convert("RGB")
+        if im.size[0]<256: return False
+        px=im.load(); v=[]
+        for y in range(0,im.size[1],8):
+            for x in range(0,im.size[0],8):
+                r,g,b=px[x,y]; v.extend([r,g,b])
+        return statistics.pvariance(v)>1000 if v else False
+    except Exception:
+        return False
 
 def fetch_base_map():
+    """Download OSM-compatible tiles (try osm.fr mirror first for reliability)."""
     x_t,y_t=69360,38086
+    sources=[
+        f"https://a.tile.openstreetmap.fr/osmfr/{ZOOM}",  # FR mirror
+        f"https://tile.openstreetmap.org/{ZOOM}",          # main
+    ]
     tiles=[]
-    for dy in (-1,0,1):
-        for dx in (-1,0,1):
-            url=f"https://tile.openstreetmap.org/{ZOOM}/{x_t+dx}/{y_t+dy}.png"
-            r=requests.get(url,headers={"User-Agent":"Mozilla/5.0"},timeout=15)
-            if r.status_code==200 and _is_real_tile(r.content): tiles.append(Image.open(io.BytesIO(r.content)).convert("RGB"))
-            else: print(f"  tile {x_t+dx},{y_t+dy} blocked/not-real status={r.status_code} len={len(r.content)}")
-            time.sleep(0.2)
+    for src_url in sources:
+        if len(tiles)>=9: break
+        for dy in (-1,0,1):
+            for dx in (-1,0,1):
+                if len(tiles)>=9: break
+                url=f"{src_url}/{x_t+dx}/{y_t+dy}.png"
+                r=requests.get(url,headers={"User-Agent":"Mozilla/5.0"},timeout=15)
+                if r.status_code==200 and _is_real_tile(r.content):
+                    tiles.append(Image.open(io.BytesIO(r.content)).convert("RGB"))
+                    print(f"  tile OK [{x_t+dx},{y_t+dy}] from {src_url.split("//")[1].split('/')[0]}")
+                else:
+                    print(f"  skip [{x_t+dx},{y_t+dy}] len={len(r.content)}")
+                time.sleep(0.2)
     if not tiles: return None
-    base=Image.new("RGB",(IMG_W,IMG_H),(232,234,236))
+    # Build a proper grid image - center tile at target position
+    # 3x3 grid centered on (x_t,y_t), each tile 256px, then scale to IMG_WxIMG_H
+    tw,th = 3*256, 3*256  # raw grid size
+    base=Image.new("RGB",(tw,th),(240,238,232))
     for i,tile in enumerate(tiles):
-        sx,sy = i%3*83+1, i//3*83+1; base.paste(tile.resize((83,83),Image.LANCZOS),(sx,sy))
+        tx=i%3; ty=i//3
+        base.paste(tile,(tx*256,ty*256))
+    # Resize to final output size with high quality
+    base=base.resize((IMG_W,IMG_H),Image.LANCZOS)
     return base
 
 def vector_base():
