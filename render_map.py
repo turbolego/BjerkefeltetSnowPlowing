@@ -10,7 +10,7 @@ TARGET = {"lat": 59.9636663, "lng": 10.4678833}
 TARGET_NAME = "Bjerkehaugen 6, Lommedalen"
 RADIUS_M = 200         # radius around address for segment filtering
 ZOOM = 17
-IMG_W = IMG_H = 400    # fixed 250x250 output
+IMG_W = IMG_H = 600    # fixed 250x250 output
 
 STATUS_COLORS = {
     "#ff0000": ("red",   (226, 28, 28)),
@@ -85,9 +85,15 @@ def fetch_base_map():
     return base
 
 def vector_base():
-    img=Image.new("RGB",(IMG_W,IMG_H),(250,250,250)); d=ImageDraw.Draw(img)
-    for x in range(0,IMG_W,25): d.line([(x,0),(x,IMG_H)],fill=(200,200,200),width=1)
-    for y in range(0,IMG_H,25): d.line([(0,y),(IMG_W,y)],fill=(200,200,200),width=1); return img
+    # OSM-style stylized background: pale beige/grey base, subtle grid
+    img=Image.new("RGB",(IMG_W,IMG_H),(235,233,225))  # OSM default grey-beige
+    d=ImageDraw.Draw(img)
+    # Subtle road grid lines mimicking OSM street layout
+    for x in range(0, IMG_W, 30):
+        d.line([(x,0),(x,IMG_H)], fill=(215,213,205), width=1)
+    for y in range(0, IMG_H, 30):
+        d.line([(0,y),(IMG_W,y)], fill=(215,213,205), width=1)
+    return img
 
 def render_map(segments, out_path="plowmap.png"):
     base=fetch_base_map()
@@ -95,7 +101,7 @@ def render_map(segments, out_path="plowmap.png"):
     else: base=base.resize((IMG_W,IMG_H),Image.LANCZOS)
     d=ImageDraw.Draw(base); cx,cy=IMG_W//2,IMG_H//2
     # px per metre: full image spans 2*RADIUS_M, so 250px / 400m
-    px_per_m = IMG_W / (2.0*RADIUS_M)  # 1 px per metre at 400px / 400m radius
+    px_per_m = IMG_W / (2.0*RADIUS_M)  # ~1.5 px per metre at 600px / 200m radius
     t_merc_x, t_merc_y = lonlat_to_mercator_m(TARGET["lng"], TARGET["lat"])
     # draw segments
     for seg in sorted(segments,key=lambda s:-s["d"]):
@@ -116,17 +122,17 @@ def render_map(segments, out_path="plowmap.png"):
     ft=ImageFont.load_default(); fs=ImageFont.load_default()
     tb=d.textbbox((0,0),title,font=ft); tw,th=tb[2]-tb[0],tb[3]-tb[1]
     sb=d.textbbox((0,0),sub,font=fs); sw,sh=sb[2]-sb[0],sb[3]-sb[1]
-    pad=12
+    pad=16
     d.rectangle([pad,pad,pad+max(tw,sw)+pad*2,pad+th+sh+pad*2],fill=(255,255,255),outline=(20,20,20),width=2)
     d.text((pad+2,pad+2),title,font=ft,fill=(10,10,10)); d.text((pad+2,pad+th+6),sub,font=fs,fill=(40,40,40))
     # bottom-left legend
     leg=[((226,28,28),"Ikke plogget nylig (>12t)"),((48,110,230),"Plogget siste 12t"),((40,190,70),"Plogget siste 4t")]
     lx=pad; ly=IMG_H-pad-70
     for i,(clr,lb) in enumerate(leg):
-        yy=ly+i*18; d.line([(lx,yy+9),lx+15,yy+9],fill=clr,width=5); d.text((lx+22,yy),lb,font=ft,fill=(20,20,20))
+        yy=ly+i*22; d.line([(lx,yy+9),lx+15,yy+9],fill=clr,width=5); d.text((lx+22,yy),lb,font=ft,fill=(20,20,20))
     # bottom-right attribution
     a="© OSM-contributorer · PlogNorge"; ab=d.textbbox((0,0),a,font=ft); aw=ab[2]-ab[0]
-    d.rectangle([IMG_W-aw-8,IMG_H-30,IMG_W-4,IMG_H-10],fill=(255,255,255),outline=(20,20,20),width=1); d.text([IMG_W-aw-4,IMG_H-20],a,font=ft,fill=(70,70,70))
+    d.rectangle([IMG_W-aw-10,IMG_H-38,IMG_W-4,IMG_H-10],fill=(255,255,255),outline=(20,20,20),width=1); d.text([IMG_W-aw-4,IMG_H-20],a,font=ft,fill=(70,70,70))
     base.save(out_path); print("  saved",out_path,base.size); return out_path
 
 if __name__=="__main__":
