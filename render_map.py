@@ -184,8 +184,14 @@ def render_map(segments, out_path="plowmap.png"):
     tb=d.textbbox((0,0),title,font=ft); tw,th=tb[2]-tb[0],tb[3]-tb[1]
     sb=d.textbbox((0,0),sub,font=fs); sw,sh=sb[2]-sb[0],sb[3]-sb[1]
     pad=12
-    d.rectangle([pad,pad,pad+max(tw,sw)+pad*2,pad+th+sh+pad*2],fill=(255,255,255),outline=(20,20,20),width=2)
-    d.text((pad+2,pad+2),title,font=ft,fill=(10,10,10)); d.text((pad+2,pad+th+6),sub,font=fs,fill=(40,40,40))
+    box_w = max(tw,sw) + pad*2
+    box_h = th + sh + pad*2
+    d.rectangle([pad,pad,pad+box_w,pad+box_h],fill=(255,255,255),outline=(20,20,20),width=2)
+    # Center text horizontally inside the box
+    title_x = pad + (box_w - pad*2 - tw) // 2
+    sub_x = pad + (box_w - pad*2 - sw) // 2
+    d.text((title_x,pad+2),title,font=ft,fill=(10,10,10))
+    d.text((sub_x,pad+th+6),sub,font=fs,fill=(40,40,40))
     
     # Legend
     leg=[((226,28,28),"Ikke pløyd nylig (>12t)"),
