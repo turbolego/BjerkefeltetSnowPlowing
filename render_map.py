@@ -188,10 +188,16 @@ def render_map(segments, out_path="plowmap.png"):
     box_x1=pad+max(tw,sw)+pad*2
     box_y1=pad+th+sh+pad*2
     d.rectangle([box_x0,box_y0,box_x1,box_y1],fill=(255,255,255),outline=(20,20,20),width=2)
-    # Center both lines on the box's true horizontal center (anchor="ma" = middle, ascender)
+    # Center both lines horizontally on cx_box and vertically as a group on cy_box
     cx_box=(box_x0+box_x1)//2
-    d.text((cx_box,box_y0+2),title,font=ft,anchor="ma",fill=(10,10,10))
-    d.text((cx_box,box_y0+th+6),sub,font=fs,anchor="ma",fill=(40,40,40))
+    cy_box=(box_y0+box_y1)//2
+    gap=4
+    total_h=th+gap+sh
+    content_top=box_y0+(box_y1-box_y0-total_h)//2
+    title_cy=content_top+th//2
+    sub_cy=content_top+th+gap+sh//2
+    d.text((cx_box,title_cy),title,font=ft,anchor="mm",fill=(10,10,10))
+    d.text((cx_box,sub_cy),sub,font=fs,anchor="mm",fill=(40,40,40))
     
     # Legend
     leg=[((226,28,28),"Ikke pløyd nylig (>12t)"),
