@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""render_map.py - render a snow-plow status map image for Bjerkehaugen 6 (200 m radius, 250x250 px, no ring)."""
+"""render_map.py - render a snow-plow status map for Bjerkehaugen 6 (200 m radius, 600x600 px)."""
 
 import io, math, re, time
 from datetime import datetime, timezone
 import requests
-import statistics
+import statistics as st
 from PIL import Image, ImageDraw, ImageFont
 
 TARGET = {"lat": 59.9636663, "lng": 10.4678833}
 TARGET_NAME = "Bjerkehaugen 6, Lommedalen"
 RADIUS_M = 200         # radius around address for segment filtering
 ZOOM = 17
-IMG_W = IMG_H = 600    # fixed 250x250 output
+IMG_W = IMG_H = 600    # fixed output size
 
 STATUS_COLORS = {
     "#ff0000": ("red",   (226, 28, 28)),
@@ -24,6 +24,16 @@ def lonlat_to_mercator_m(lng, lat):
     x = math.radians(lng) * 6378137.0
     y = math.log(math.tan(math.pi/4 + math.radians(lat)/2)) * 6378137.0
     return x, y
+
+def mercator_to_pixel(mx, my, raw_w, raw_h):
+    """Convert mercator meters to pixel position in raw grid."""
+    n = 2 ** ZOOM
+    world = 2 * math.pi * 6378137.0
+    # World extent in pixels at this zoom
+    px_x = (mx + world/2) / world * raw_w
+    # Invert Y (mercator y increases northward, image y increases downward)
+    py_y = (world/2 - my) / world * raw_h
+    return int(px_x), int(py_y)
 
 def haversine_m(lat1, lng1, lat2, lng2):
     R=6371000.0; p1,p2=math.radians(lat1),math.radians(lat2)
@@ -55,38 +65,32 @@ def pick_nearby(all_segments):
         if dm<=RADIUS_M: out.append({"id":seg.get("Id"),"color":seg.get("Color"),"last_visit":seg.get("LatestVisitTime"),"d":dm,"pts":pts})
     out.sort(key=lambda x:x["d"]); return out
 
-def _tile_color_buckets(content: bytes) -> int:
-    try:
-        im=Image.open(io.BytesIO(content)).convert("RGB")
-        if im.size[0]<256: return 0
-        px=im.load(); seen=set()
-        for y in range(0,im.size[1],2):
-            for x in range(0,im.size[0],2):
-                r,g,b=px[x,y]; seen.add((r//32,g//32,b//32))
-        return len(seen)
-    except: return 0
-
 def _is_real_tile(content: bytes) -> bool:
-    """A real OSM tile has high pixel variance (>1000); blocked placeholders are uniform."""
+    """A real OSM tile has high pixel variance (>800); blocked placeholders are uniform."""
     if len(content)<500 or content[:4]!=b"\x89PNG": return False
     try:
         im=Image.open(io.BytesIO(content)).convert("RGB")
         if im.size[0]<256: return False
         px=im.load(); v=[]
-        for y in range(0,im.size[1],8):
-            for x in range(0,im.size[0],8):
-                r,g,b=px[x,y]; v.extend([r,g,b])
-        return statistics.pvariance(v)>1000 if v else False
+        for y in range(0,im.size[1],4):
+            for x in range(0,im.size[0],4): r,g,b=px[x,y]; v.extend([r,g,b])
+        return st.pvariance(v)>800 if v else False
     except Exception:
         return False
 
 def fetch_base_map():
-    """Download OSM-compatible tiles (try osm.fr mirror first for reliability)."""
-    # Bjerkehaugen 6 (59.9636663, 10.4678833) at z17
-    x_t, y_t = 69347, 38089
-    # Try multiple sources in order: OSM-FR is most permissive, then others
+    """Download OSM-compatible tiles aligned to TARGET position."""
+    # Tile coords for Bjerkehaugen 6 at z17
+    t_merc_x, t_merc_y = lonlat_to_mercator_m(TARGET["lng"], TARGET["lat"])
+    n = 2 ** ZOOM
+    world = 2 * math.pi * 6378137.0
+    tile_size = world / n
+    x_t = int((t_merc_x + world/2) / tile_size)
+    y_t = int((world/2 - t_merc_y) / tile_size)
+    print(f"  tile center [{x_t},{y_t}] for Bjerkehaugen 6")
+    
     sources=[
-        f"https://a.tile.openstreetmap.fr/osmfr/{ZOOM}",   # French mirror (most reliable)
+        f"https://a.tile.openstreetmap.fr/osmfr/{ZOOM}",   # FR mirror
         f"https://tile.opentopomap.org/{ZOOM}",             # OpenTopoMap fallback
         f"https://tile.openstreetmap.de/{ZOOM}",            # German mirror fallback
     ]
@@ -100,27 +104,29 @@ def fetch_base_map():
                 r=requests.get(url,headers={"User-Agent":"Mozilla/5.0"},timeout=15)
                 if r.status_code==200 and _is_real_tile(r.content):
                     tiles.append(Image.open(io.BytesIO(r.content)).convert("RGB"))
-                    print(f"  tile OK [{x_t+dx},{y_t+dy}] from {src_url.split("//")[1].split('/')[0]}")
+                    print(f"  tile OK [{x_t+dx},{y_t+dy}]")
                 else:
                     print(f"  skip [{x_t+dx},{y_t+dy}] len={len(r.content)}")
                 time.sleep(0.2)
     if not tiles: return None
-    # Build a proper grid image - center tile at target position
-    # 3x3 grid centered on (x_t,y_t), each tile 256px, then scale to IMG_WxIMG_H
-    tw,th = 3*256, 3*256  # raw grid size
-    base=Image.new("RGB",(tw,th),(240,238,232))
+    
+    # Build 3x3 grid with TARGET tile in center (position [1,1])
+    # This ensures consistent alignment between base map and overlays
+    raw_w = 3 * 256
+    raw_h = 3 * 256
+    base=Image.new("RGB",(raw_w,raw_h),(240,238,232))
     for i,tile in enumerate(tiles):
         tx=i%3; ty=i//3
         base.paste(tile,(tx*256,ty*256))
-    # Resize to final output size with high quality
+    
+    # Resize to final output size
     base=base.resize((IMG_W,IMG_H),Image.LANCZOS)
     return base
 
 def vector_base():
     # OSM-style stylized background: pale beige/grey base, subtle grid
-    img=Image.new("RGB",(IMG_W,IMG_H),(235,233,225))  # OSM default grey-beige
+    img=Image.new("RGB",(IMG_W,IMG_H),(235,233,225))
     d=ImageDraw.Draw(img)
-    # Subtle road grid lines mimicking OSM street layout
     for x in range(0, IMG_W, 30):
         d.line([(x,0),(x,IMG_H)], fill=(215,213,205), width=1)
     for y in range(0, IMG_H, 30):
@@ -129,46 +135,61 @@ def vector_base():
 
 def render_map(segments, out_path="plowmap.png"):
     base=fetch_base_map()
-    if base is None: print("  OSM tiles unavailable - using vector fallback"); base=vector_base()
-    else: base=base.resize((IMG_W,IMG_H),Image.LANCZOS)
-    d=ImageDraw.Draw(base); cx,cy=IMG_W//2,IMG_H//2
-    # px per metre: full image spans 2*RADIUS_M, so 250px / 400m
-    px_per_m = IMG_W / (2.0*RADIUS_M)  # ~1.5 px per metre at 600px / 200m radius
+    if base is None:
+        print("  OSM tiles unavailable - using vector fallback")
+        base=vector_base()
+    d=ImageDraw.Draw(base)
+    
+    # Calculate target pixel position in the resized image
     t_merc_x, t_merc_y = lonlat_to_mercator_m(TARGET["lng"], TARGET["lat"])
-    # draw segments
+    cx, cy = mercator_to_pixel(t_merc_x, t_merc_y, IMG_W, IMG_H)
+    print(f"  target maps to pixel ({cx},{cy}) in {IMG_W}x{IMG_H} image")
+    
+    # Draw segments using consistent coordinate system
     for seg in sorted(segments,key=lambda s:-s["d"]):
         key=STATUS_COLORS.get(seg.get("color"),STATUS_COLORS["#ff0000"]); color=key[1]
         pts=[]
         for lng,la in seg["pts"]:
-            mx,my=lonlat_to_mercator_m(lng,la)
-            sx=cx + (mx - t_merc_x) * px_per_m
-            sy=cy - (my - t_merc_y) * px_per_m
+            mx,my = lonlat_to_mercator_m(lng,la)
+            sx,sy = mercator_to_pixel(mx, my, IMG_W, IMG_H)
             pts.append((sx,sy))
         if len(pts)>1:
-            d.line(pts, fill=color, width=2, joint="curve")
-    # NO white ring - per user request
-    d.ellipse([cx-3,cy-3,cx+3,cy+3],fill=(20,20,20))
-    # title/subtitle
+            d.line(pts, fill=color, width=3, joint="curve")
+    
+    # Small marker dot at target (address location)
+    d.ellipse([cx-4,cy-4,cx+4,cy+4],fill=(20,20,20))
+    
+    # Title/subtitle
     title="Plog-status: "+TARGET_NAME
-    sub=f"{len(segments)} seg. inngang < {RADIUS_M} m · sist 13.11"
+    sub=f"{len(segments)} seg. < {RADIUS_M} m · sist 13.11"
     ft=ImageFont.load_default(); fs=ImageFont.load_default()
     tb=d.textbbox((0,0),title,font=ft); tw,th=tb[2]-tb[0],tb[3]-tb[1]
     sb=d.textbbox((0,0),sub,font=fs); sw,sh=sb[2]-sb[0],sb[3]-sb[1]
-    pad=16
+    pad=12
     d.rectangle([pad,pad,pad+max(tw,sw)+pad*2,pad+th+sh+pad*2],fill=(255,255,255),outline=(20,20,20),width=2)
     d.text((pad+2,pad+2),title,font=ft,fill=(10,10,10)); d.text((pad+2,pad+th+6),sub,font=fs,fill=(40,40,40))
-    # bottom-left legend
-    leg=[((226,28,28),"Ikke plogget nylig (>12t)"),((48,110,230),"Plogget siste 12t"),((40,190,70),"Plogget siste 4t")]
-    lx=pad; ly=IMG_H-pad-70
+    
+    # Legend
+    leg=[((226,28,28),"Ikke pløyd nylig (>12t)"),
+         ((48,110,230),"Pløyd siste 12t"),
+         ((40,190,70),"Pløyd siste 4t")]
+    lx,ly=pad,IMG_H-pad-70
     for i,(clr,lb) in enumerate(leg):
-        yy=ly+i*22; d.line([(lx,yy+9),lx+15,yy+9],fill=clr,width=5); d.text((lx+22,yy),lb,font=ft,fill=(20,20,20))
-    # bottom-right attribution
-    a="© OSM-contributorer · PlogNorge"; ab=d.textbbox((0,0),a,font=ft); aw=ab[2]-ab[0]
-    d.rectangle([IMG_W-aw-10,IMG_H-38,IMG_W-4,IMG_H-10],fill=(255,255,255),outline=(20,20,20),width=1); d.text([IMG_W-aw-4,IMG_H-20],a,font=ft,fill=(70,70,70))
-    base.save(out_path); print("  saved",out_path,base.size); return out_path
+        yy=ly+i*22; d.line([(lx,yy+10),lx+16,yy+10],fill=clr,width=5)
+        d.text((lx+24,yy),lb,font=ft,fill=(20,20,20))
+    
+    # Attribution
+    a="© OSM-contributorer | PlogNorge"; ab=d.textbbox((0,0),a,font=ft); aw=ab[2]-ab[0]
+    d.rectangle([IMG_W-aw-12,IMG_H-32,IMG_W-4,IMG_H-12],fill=(255,255,255),outline=(20,20,20),width=1)
+    d.text((IMG_W-aw-8,IMG_H-26),a,font=ft,fill=(70,70,70))
+    
+    base.save(out_path)
+    print(f"  saved {out_path} ({IMG_W}x{IMG_H})")
+    return out_path
 
 if __name__=="__main__":
     from plowbot import get_plognorge_segments, segments_near_target
-    segs=segments_near_target(get_plognorge_segments()); print(f"{len(segs)} segments within {RADIUS_M} m")
+    segs=segments_near_target(get_plognorge_segments())
+    print(f"{len(segs)} segments within {RADIUS_M} m")
     for s in segs: print(f"  id {s['id']} {s['d']:.0f} m {s['color']}")
     render_map(segs)
