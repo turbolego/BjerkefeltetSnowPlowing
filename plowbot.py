@@ -231,36 +231,29 @@ def format_days_since(dt) -> str:
 
 
 def build_post_text(near: list[dict]) -> str:
-    """Compose the Bluesky post for the current plow status."""
+    """Compose the Bluesky post for the current plow status (max ~300 chars)."""
     now_local = datetime.now(timezone.utc).astimezone()
     with_visit = [s for s in near if s["last_visit"] is not None]
-    never = len(near) - len(with_visit)
 
     if with_visit:
         last = max(s["last_visit"] for s in with_visit)
         oldest = min(s["last_visit"] for s in with_visit)
         lines = [
-            f"🚜 Plog-status for {TARGET_NAME} ({now_local:%Y-%m-%d %H:%M} CET):",
-            "",
-            f"• {len(near)} road segments within {TARGET_RADIUS_M} m",
-            f"• Most recent plow: {last:%d.%m.%Y kl %H.%M} ({format_days_since(last)} siden)",
-            f"• Oldest plow in area: {oldest:%d.%m.%Y kl %H.%M}",
+            f"🚜 Plog-status {TARGET_NAME} ({now_local:%Y-%m-%d %H:%M}):",
+            f"• {len(near)} segmenter < {TARGET_RADIUS_M} m",
+            f"• Sist pløyd: {last:%d.%m.%Y kl %H.%M}",
+            f"• Eldste: {oldest:%d.%m.%Y kl %H.%M}",
         ]
-        if never:
-            lines.append(f"• {never} segment(s) with no recorded plow visit at all")
     else:
         lines = [
-            f"🚜 Plog-status for {TARGET_NAME} ({now_local:%Y-%m-%d %H:%M} CET):",
-            "",
-            f"• {len(near)} road segments within {TARGET_RADIUS_M} m",
-            "• No plow visits recorded for any of them",
+            f"🚜 Plog-status {TARGET_NAME} ({now_local:%Y-%m-%d %H:%M}):",
+            f"• {len(near)} segmenter < {TARGET_RADIUS_M} m",
+            "• Ingen pløyebesøk registrert",
         ]
 
     lines += [
-        "",
-        f"Kart: {PLOGNOR_BASE.replace('mobiwinqa', 'mobiwinqa')}/{CITY}?groupId={STATUS_GROUP_ID}",
-        "",
-        "#plogging #bærum #bjerkefeltet #snø #wintermaintenance",
+        f"Kart: {PLOGNOR_BASE}/{CITY}?groupId={STATUS_GROUP_ID}",
+        "#plogging #bærum #bjerkefeltet #snø #vintervedlikehold",
     ]
     return "\n".join(lines)
 
