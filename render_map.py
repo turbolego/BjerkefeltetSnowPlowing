@@ -199,7 +199,7 @@ def render_map(segments, out_path="plowmap.png"):
     d.text((cx_box,title_cy),title,font=ft,anchor="mm",fill=(10,10,10))
     d.text((cx_box,sub_cy),sub,font=fs,anchor="mm",fill=(40,40,40))
     
-    # Legend (in a box matching the top-left style: white bg, black border)
+    # Legend (in a box matching the top-left style: white bg, black border) — TOP RIGHT
     leg=[((226,28,28),"Ikke pløyd nylig (>12t)"),
          ((48,110,230),"Pløyd siste 12t"),
          ((40,190,70),"Pløyd siste 4t")]
@@ -209,9 +209,9 @@ def render_map(segments, out_path="plowmap.png"):
     row_h=22; line_gap=4
     content_w=swatch_w+swatch_gap+max_label_w
     content_h=len(leg)*row_h+(len(leg)-1)*line_gap
-    bx0=pad
-    by0=IMG_H-pad-(content_h+pad2*2)
-    bx1=bx0+content_w+pad2*2
+    bx1=IMG_W-pad
+    by0=pad
+    bx0=bx1-(content_w+pad2*2)
     by1=by0+content_h+pad2*2
     d.rectangle([bx0,by0,bx1,by1],fill=(255,255,255),outline=(20,20,20),width=2)
     for i,(clr,lb) in enumerate(leg):
