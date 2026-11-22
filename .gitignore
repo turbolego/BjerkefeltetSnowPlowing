@@ -23,4 +23,3 @@ env/
 
 # Bot scratch output
 *.log
-state.json

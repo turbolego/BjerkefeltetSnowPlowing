@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import io
+import json
 import logging
 import math
 import os
@@ -56,6 +57,79 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
 )
+
+
+# ---------------------------------------------------------------------------
+# Change detection
+#
+# When [post].post_on_changes_only is true (the default), the bot only posts
+# to Bluesky if at least one road segment in the selected area changed since
+# the previous run. The last-seen state is persisted to a small JSON file
+# (committed back to the repo by the workflow) so it survives across runs.
+# ---------------------------------------------------------------------------
+def segment_signature(near: list[dict]) -> dict[str, str]:
+    """Stable per-segment signature: {segment_id: last_visit_raw}.
+
+    A segment counts as 'changed' when its raw PlogNorge LatestVisitTime
+    differs from the stored value, or when the set of in-area segments
+    changes.
+    """
+    sig: dict[str, str] = {}
+    for s in near:
+        ident = str(s.get("id"))
+        sig[ident] = s.get("last_visit_raw") or ""
+    return sig
+
+
+def load_state(cfg: Config) -> dict[str, str] | None:
+    """Return the previously stored segment signature, or None if absent."""
+    import os
+    p = os.path.join(os.getcwd(), cfg.state_file)
+    if not os.path.exists(p):
+        return None
+    try:
+        with open(p, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data.get("segments")
+    except (json.JSONDecodeError, OSError, AttributeError) as e:
+        logging.warning("Could not read state file %s: %s", p, e)
+        return None
+
+
+def save_state(cfg: Config, signature: dict[str, str]) -> None:
+    """Persist the current segment signature for the next run's comparison.
+
+    No-op when the stored signature is unchanged, so the state file (and any
+    git commit of it) only churns when a segment actually changed.
+    """
+    import os
+    from datetime import datetime, timezone
+    if load_state(cfg) == signature:
+        return
+    p = os.path.join(os.getcwd(), cfg.state_file)
+    payload = {
+        "updated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "segments": signature,
+    }
+    with open(p, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2, sort_keys=True)
+    logging.info("Saved segment state to %s", p)
+
+
+def has_segment_changes(cfg: Config, near: list[dict]) -> bool:
+    """True when the current signature differs from the stored one.
+
+    With no stored state (first run), return True so the initial baseline
+    snapshot is posted once.
+    """
+    if not cfg.post_on_changes_only:
+        return True
+    current = segment_signature(near)
+    previous = load_state(cfg)
+    if previous is None:
+        logging.info("No prior state found - posting initial baseline snapshot")
+        return True
+    return current != previous
 
 
 # ---------------------------------------------------------------------------
@@ -395,6 +469,24 @@ def main() -> int:
         image_path = render_map(cfg, near, group)
     except Exception as e:
         logging.warning("Map image render failed, posting text only: %s", e)
+
+    # Change detection: when post_on_changes_only is set (default), skip the
+    # Bluesky post unless at least one in-area road segment changed since the
+    # previous run. The map is still (re)rendered and committed each time.
+    changed = has_segment_changes(cfg, near)
+    if cfg.post_on_changes_only and not changed:
+        logging.info(
+            "No road segments in '%s' changed since the last run - "
+            "skipping Bluesky post (post_on_changes_only)",
+            cfg.area,
+        )
+        save_state(cfg, segment_signature(near))
+        if image_path:
+            logging.info("Map image saved to %s (no post: no changes)", image_path)
+        return 0
+
+    # Persist the current segment state so the next run can detect changes.
+    save_state(cfg, segment_signature(near))
 
     if args.dry_run or args.no_post:
         ok = dry_run(text)

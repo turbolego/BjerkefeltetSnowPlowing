@@ -72,6 +72,8 @@ during active winter operations).
 | | `base_url` | `https://mobiwinqa.bmsystem.se/PlogNorge` | PlogNorge base URL |
 | `post` | `hashtags` | `[]` | Hashtags (without `#`) |
 | | `timezone` | `Europe/Oslo` | Time zone of PlogNorge timestamps |
+| | `post_on_changes_only` | `true` | Post to Bluesky only when at least one in-area segment changed since the last run. Set `false` to post every run. |
+| | `state_file` | `plowbot_state.json` | File storing the last-seen segment state for change detection (committed by CI so it persists across runs). |
 | `map` | `output` | `plowmap.png` | Image file written (and committed by CI) |
 | | `size_px` | `600` | Square image size |
 | | `zoom` | `"auto"` | Tile zoom, or `"auto"` to fit `radius_m` |
@@ -98,6 +100,12 @@ Use a different file with `--config path/to/file.toml` or the
    rejected), falling back to a plain schematic if no tiles load. Segments
    are drawn in PlogNorge's status colours with a matching legend and the
    latest event time.
+6. **Change detection** (default on, `[post].post_on_changes_only = true`):
+   the last-seen state of the in-area segments is kept in `state_file`
+   (committed by CI so it persists across runs). The bot compares the
+   current per-segment `LatestVisitTime` against that file and only posts to
+   Bluesky when at least one segment changed (or on the very first run, to
+   establish a baseline). The map is still rendered and committed every run.
 
 ## Example post
 

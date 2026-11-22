@@ -31,6 +31,8 @@ class Config:
     status_group_id: int | None = None
     hashtags: list[str] = field(default_factory=list)
     timezone: str = "Europe/Oslo"
+    post_on_changes_only: bool = True
+    state_file: str = "plowbot_state.json"
     map_output: str = "plowmap.png"
     map_size_px: int = 600
     map_zoom: int | str = "auto"
@@ -81,6 +83,8 @@ def load_config(path: str | os.PathLike | None = None) -> Config:
         ),
         hashtags=[str(h).lstrip("#") for h in post.get("hashtags", [])],
         timezone=str(post.get("timezone", "Europe/Oslo")),
+        post_on_changes_only=bool(post.get("post_on_changes_only", True)),
+        state_file=str(post.get("state_file", "plowbot_state.json")),
         map_output=str(mp.get("output", "plowmap.png")),
         map_size_px=int(mp.get("size_px", 600)),
         map_zoom=zoom,

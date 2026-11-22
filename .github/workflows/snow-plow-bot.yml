@@ -46,15 +46,16 @@ jobs:
             python plowbot.py --dry-run
           fi
 
-      - name: Commit updated map to main (triggers GitHub Pages)
+      - name: Commit updated map + state to main (triggers GitHub Pages)
         run: |
           MAP=$(python -c "from config import load_config; print(load_config().map_output)")
+          STATE=$(python -c "from config import load_config; print(load_config().state_file)")
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add "$MAP"
+          git add "$MAP" "$STATE"
           if git diff --cached --quiet; then
-            echo "No changes to $MAP — skipping commit."
+            echo "No changes to $MAP / $STATE — skipping commit."
           else
-            git commit -m "Update $MAP (auto)"
+            git commit -m "Update $MAP and $STATE (auto)"
             git push origin main
           fi

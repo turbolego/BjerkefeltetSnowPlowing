@@ -30,6 +30,13 @@ status_group_id = 80
 hashtags = ["Brøyteweb", "bærum", "bjerkefeltet", "snø", "vintervedlikehold"]
 # Time zone PlogNorge timestamps are reported in.
 timezone = "Europe/Oslo"
+# Only post to Bluesky if at least one road segment in the selected area has
+# changed since the last run. Default: true (post on changes only). Set to
+# false to post on every run regardless of whether anything changed.
+post_on_changes_only = true
+# File that stores the last-seen segment state, used for change detection.
+# Committed back to the repo on each run (see the GitHub Actions workflow).
+state_file = "plowbot_state.json"
 
 [map]
 output = "plowmap.png"
