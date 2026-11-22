@@ -310,6 +310,7 @@ def post_to_bluesky(text: str, image_path: str | None = None,
         repo=client.me.did,
         record=models.AppBskyFeedPost.Record(
             text=text,
+            created_at=datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
             embed=models.AppBskyEmbedImages.Main(
                 images=[
                     models.AppBskyEmbedImages.Image(
