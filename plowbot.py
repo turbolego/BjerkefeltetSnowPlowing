@@ -165,6 +165,45 @@ def segments_near_target(all_segments: list[dict]) -> list[dict]:
     return out
 
 
+def get_latest_event_time(segments: list[dict]) -> str:
+    """Return formatted string of latest visit time across all segments.
+    Format: 'Siste hendelse: Fredag 13 November 2026 kl. 07:37'"""
+    from datetime import timezone as dt_timezone
+    
+    NORWEGIAN_MONTHS = [
+        "Januar", "Februar", "Mars", "April", "Mai", "Juni",
+        "Juli", "August", "September", "Oktober", "November", "Desember"
+    ]
+    NORWEGIAN_WEEKDAYS = [
+        "Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag", "Lørdag", "Søndag"
+    ]
+    
+    latest = None
+    for seg in segments:
+        lv = seg.get("last_visit")
+        if lv and (latest is None or lv > latest):
+            latest = lv
+    
+    if latest is None:
+        return "Siste hendelse: Ingen data"
+    
+    # Convert to Oslo time
+    if latest.tzinfo is None:
+        # Assume already Oslo-local from parse_visit_time
+        oslo_time = latest
+    else:
+        oslo_time = latest.astimezone(dt_timezone(timedelta(hours=OSLO_UTC_OFFSETS.get(latest.month, 1))))
+    
+    weekday = NORWEGIAN_WEEKDAYS[oslo_time.weekday()]
+    day = oslo_time.day
+    month = NORWEGIAN_MONTHS[oslo_time.month - 1]
+    year = oslo_time.year
+    hour = oslo_time.hour
+    minute = oslo_time.minute
+    
+    return f"Siste hendelse: {weekday} {day} {month} {year} kl. {hour:02d}:{minute:02d}"
+
+
 # ---------------------------------------------------------------------------
 # Post composition
 # ---------------------------------------------------------------------------

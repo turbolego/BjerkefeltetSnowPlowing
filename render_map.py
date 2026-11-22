@@ -172,29 +172,22 @@ def render_map(segments, out_path="plowmap.png"):
     # Small marker dot at target (address location)
     d.ellipse([cx-4,cy-4,cx+4,cy+4],fill=(20,20,20))
 
-    # Title/subtitle
-    title="Plog-status: "+TARGET_NAME
-    sub=f"{len(segments)} seg. < {RADIUS_M} m · sist 13.11"
+    # Title/subtitle - show only latest event time
+    from plowbot import get_latest_event_time
+    title = get_latest_event_time(segments)
     # Use DejaVuSans with 30% larger font (15pt vs default ~11.5pt)
     ft=ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 15)
     fs=ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 15)
     tb=d.textbbox((0,0),title,font=ft); tw,th=tb[2]-tb[0],tb[3]-tb[1]
-    sb=d.textbbox((0,0),sub,font=fs); sw,sh=sb[2]-sb[0],sb[3]-sb[1]
     pad=12
     box_x0,box_y0=pad,pad
-    box_x1=pad+max(tw,sw)+pad*2
-    box_y1=pad+th+sh+pad*2
+    box_x1=pad+tw+pad*2
+    box_y1=pad+th+pad*2
     d.rectangle([box_x0,box_y0,box_x1,box_y1],fill=(255,255,255),outline=(20,20,20),width=2)
-    # Center both lines horizontally on cx_box and vertically as a group on cy_box
+    # Center text horizontally and vertically
     cx_box=(box_x0+box_x1)//2
     cy_box=(box_y0+box_y1)//2
-    gap=4
-    total_h=th+gap+sh
-    content_top=box_y0+(box_y1-box_y0-total_h)//2
-    title_cy=content_top+th//2
-    sub_cy=content_top+th+gap+sh//2
-    d.text((cx_box,title_cy),title,font=ft,anchor="mm",fill=(10,10,10))
-    d.text((cx_box,sub_cy),sub,font=fs,anchor="mm",fill=(40,40,40))
+    d.text((cx_box,cy_box),title,font=ft,anchor="mm",fill=(10,10,10))
 
     # Legend (in a box matching the top-left style: white bg, black border) — TOP RIGHT
     leg=[((226,28,28),"Ikke pløyd nylig (>12t)"),
