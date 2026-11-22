@@ -27,29 +27,29 @@ def lonlat_to_mercator_m(lng, lat):
 
 def mercator_to_pixel(mx, my, img_w, img_h, target_mx=None, target_my=None):
     """Convert mercator meters to pixel position in the 3x3 tile grid image.
-    
+
     Uses exact tile-grid geometry matching fetch_base_map() to guarantee
     segments align precisely with the background tiles.
     """
     if target_mx is None or target_my is None:
         target_mx, target_my = lonlat_to_mercator_m(TARGET["lng"], TARGET["lat"])
-    
+
     n = 2 ** ZOOM
     world = 2 * math.pi * 6378137.0
     tile_size = world / n
     raw_size = 3 * 256  # 768px raw grid
     scale = img_w / raw_size  # 600/768 = 0.78125
-    
+
     # Grid origin = top-left of tile (x_t-1, y_t-1), matching fetch_base_map
     x_t = int((target_mx + world/2) / tile_size)
     y_t = int((world/2 - target_my) / tile_size)
     x_origin = x_t - 1
     y_origin = y_t - 1
-    
+
     # Fractional position within the 3x3 grid
     frac_x = (mx + world/2) / tile_size - x_origin
     frac_y = (world/2 - my) / tile_size - y_origin
-    
+
     # Convert to pixels: raw grid position * scale
     px_x = int(frac_x * 256 * scale)
     py_y = int(frac_y * 256 * scale)
@@ -62,45 +62,42 @@ def haversine_m(lat1, lng1, lat2, lng2):
     return 2*R*math.asin(math.sqrt(h))
 
 def parse_wkt(wkt):
-    return [(float(a),float(b)) for a,b in re.findall(r"(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?", wkt)]
+    return [(float(a),float(b)) for a,b in re.findall(r"(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)", wkt)]
 
 def fetch_segments():
     s=requests.Session(); s.headers.update({"User-Agent":"Mozilla/5.0"})
+    # 1. GET landing page to establish session / cookies
     r=s.get("https://mobiwinqa.bmsystem.se/PlogNorge/baerum?groupId=80",timeout=30); r.raise_for_status()
-    tok=re.search(r'name="__RequestVerificationToken"[^>]*value="([^"]+)"',r.text).group(1)
+    # 2. POST GetVisits (the AJAX call that returns the segment table)
     pr=s.post("https://mobiwinqa.bmsystem.se/PlogNorge/Home/GetVisits",
-              json={"Date":datetime.now(timezone.utc).isoformat(),"StatusGroupId":80},
-              headers={"X-Requested-With":"XMLHttpRequest","RequestVerificationToken":tok,
-                       "Content-Type":"application/json; charset=utf-8"},timeout=120)
-    pr.raise_for_status(); return pr.json().get("MaintenanceObjectVisits") or []
+              json={"groupId":80,"take":200,"skip":0},
+              headers={"Content-Type":"application/json","X-Requested-With":"XMLHttpRequest"},
+              timeout=30)
+    pr.raise_for_status()
+    return pr.json().get("Data",[])
 
-def pick_nearby(all_segments):
-    out=[]
-    for seg in all_segments:
-        w=seg.get("Wkt") or ""
-        if not re.search(r"LINESTRING|POINT", w): continue
-        pts=parse_wkt(w)
-        if not pts: continue
-        dm=min(haversine_m(TARGET["lat"],TARGET["lng"],la,ln) for ln,la in pts)
-        if dm<=RADIUS_M: out.append({"id":seg.get("Id"),"color":seg.get("Color"),"last_visit":seg.get("LatestVisitTime"),"d":dm,"pts":pts})
-    out.sort(key=lambda x:x["d"]); return out
-
-def _is_real_tile(content: bytes) -> bool:
-    """A real OSM tile has high pixel variance (>800); blocked placeholders are uniform."""
-    if len(content)<500 or content[:4]!=b"\x89PNG": return False
+def is_real_tile(data):
+    if len(data) < 1000:
+        return False
+    from PIL import Image
     try:
-        im=Image.open(io.BytesIO(content)).convert("RGB")
-        if im.size[0]<256: return False
-        px=im.load(); v=[]
-        for y in range(0,im.size[1],4):
-            for x in range(0,im.size[0],4): r,g,b=px[x,y]; v.extend([r,g,b])
-        return st.pvariance(v)>800 if v else False
+        im=Image.open(io.BytesIO(data))
+        if im.size!=(256,256): return False
+        pix=list(im.getdata())
+        if len(pix) < 100: return False
+        # pixel variance heuristic: blocked/placeholder tiles are near-uniform
+        import statistics as st
+        var=st.pvariance([sum(p)//3 for p in pix])
+        return var > 800
     except Exception:
         return False
 
 def fetch_base_map():
-    """Download OSM-compatible tiles aligned to TARGET position."""
-    # Tile coords for Bjerkehaugen 6 at z17
+    # Tile server (OpenTopoMap - works from cloud)
+    sources=[
+        f"https://tile.opentopomap.org/{ZOOM}"
+    ]
+    tiles=[]
     t_merc_x, t_merc_y = lonlat_to_mercator_m(TARGET["lng"], TARGET["lat"])
     n = 2 ** ZOOM
     world = 2 * math.pi * 6378137.0
@@ -108,11 +105,6 @@ def fetch_base_map():
     x_t = int((t_merc_x + world/2) / tile_size)
     y_t = int((world/2 - t_merc_y) / tile_size)
     print(f"  tile center [{x_t},{y_t}] for Bjerkehaugen 6")
-    
-    sources=[
-        f"https://tile.opentopomap.org/{ZOOM}"   # OpenTopoMap (OSM blocked)
-    ]
-    tiles=[]
     for src_url in sources:
         if len(tiles)>=9: break
         for dy in (-1,0,1):
@@ -120,14 +112,14 @@ def fetch_base_map():
                 if len(tiles)>=9: break
                 url=f"{src_url}/{x_t+dx}/{y_t+dy}.png"
                 r=requests.get(url,headers={"User-Agent":"Mozilla/5.0"},timeout=15)
-                if r.status_code==200 and _is_real_tile(r.content):
+                if r.status_code==200 and is_real_tile(r.content):
                     tiles.append(Image.open(io.BytesIO(r.content)).convert("RGB"))
                     print(f"  tile OK [{x_t+dx},{y_t+dy}]")
                 else:
                     print(f"  skip [{x_t+dx},{y_t+dy}] len={len(r.content)}")
                 time.sleep(0.2)
     if not tiles: return None
-    
+
     # Build 3x3 grid with TARGET tile in center (position [1,1])
     # This ensures consistent alignment between base map and overlays
     raw_w = 3 * 256
@@ -136,7 +128,7 @@ def fetch_base_map():
     for i,tile in enumerate(tiles):
         tx=i%3; ty=i//3
         base.paste(tile,(tx*256,ty*256))
-    
+
     # Resize to final output size
     base=base.resize((IMG_W,IMG_H),Image.LANCZOS)
     return base
@@ -157,12 +149,12 @@ def render_map(segments, out_path="plowmap.png"):
         print("  OSM tiles unavailable - using vector fallback")
         base=vector_base()
     d=ImageDraw.Draw(base)
-    
+
     # Calculate target pixel position in the resized image
     t_merc_x, t_merc_y = lonlat_to_mercator_m(TARGET["lng"], TARGET["lat"])
     cx, cy = mercator_to_pixel(t_merc_x, t_merc_y, IMG_W, IMG_H, t_merc_x, t_merc_y)
     print(f"  target maps to pixel ({cx},{cy}) in {IMG_W}x{IMG_H} image")
-    
+
     # Draw segments using consistent coordinate system
     for seg in sorted(segments,key=lambda s:-s["d"]):
         key=STATUS_COLORS.get(seg.get("color"),STATUS_COLORS["#ff0000"]); color=key[1]
@@ -173,55 +165,55 @@ def render_map(segments, out_path="plowmap.png"):
             pts.append((sx,sy))
         if len(pts)>1:
             d.line(pts, fill=color, width=3, joint="curve")
-    
+
     # Small marker dot at target (address location)
     d.ellipse([cx-4,cy-4,cx+4,cy+4],fill=(20,20,20))
-    
-    # Title/subtitle
-        title="Plog-status: "+TARGET_NAME
-        sub=f"{len(segments)} seg. < {RADIUS_M} m · sist 13.11"
-        # Use DejaVuSans with 30% larger font (15pt vs default ~11.5pt)
-        ft=ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 15)
-        fs=ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 15)
-        tb=d.textbbox((0,0),title,font=ft); tw,th=tb[2]-tb[0],tb[3]-tb[1]
-        sb=d.textbbox((0,0),sub,font=fs); sw,sh=sb[2]-sb[0],sb[3]-sb[1]
-        pad=12
-        box_x0,box_y0=pad,pad
-        box_x1=pad+max(tw,sw)+pad*2
-        box_y1=pad+th+sh+pad*2
-        d.rectangle([box_x0,box_y0,box_x1,box_y1],fill=(255,255,255),outline=(20,20,20),width=2)
-        # Center both lines horizontally on cx_box and vertically as a group on cy_box
-        cx_box=(box_x0+box_x1)//2
-        cy_box=(box_y0+box_y1)//2
-        gap=4
-        total_h=th+gap+sh
-        content_top=box_y0+(box_y1-box_y0-total_h)//2
-        title_cy=content_top+th//2
-        sub_cy=content_top+th+gap+sh//2
-        d.text((cx_box,title_cy),title,font=ft,anchor="mm",fill=(10,10,10))
-        d.text((cx_box,sub_cy),sub,font=fs,anchor="mm",fill=(40,40,40))
 
-        # Legend (in a box matching the top-left style: white bg, black border) — TOP RIGHT
-        leg=[((226,28,28),"Ikke pløyd nylig (>12t)"),
-             ((48,110,230),"Pløyd siste 12t"),
-             ((40,190,70),"Pløyd siste 4t")]
-        leg_font=ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 15)
-        leg_widths=[d.textbbox((0,0),lb,font=leg_font)[2] for (clr,lb) in leg]
-        max_label_w=max(leg_widths)
-        swatch_w=16; swatch_gap=8; pad2=12
-        row_h=22; line_gap=4
-        content_w=swatch_w+swatch_gap+max_label_w
-        content_h=len(leg)*row_h+(len(leg)-1)*line_gap
-        bx1=IMG_W-pad
-        by0=pad
-        bx0=bx1-(content_w+pad2*2)
-        by1=by0+content_h+pad2*2
-        d.rectangle([bx0,by0,bx1,by1],fill=(255,255,255),outline=(20,20,20),width=2)
-        for i,(clr,lb) in enumerate(leg):
-            row_top=by0+pad2+i*(row_h+line_gap)
-            row_mid=row_top+row_h//2
-            d.line([(bx0+pad2,row_mid),(bx0+pad2+swatch_w,row_mid)],fill=clr,width=5)
-            d.text((bx0+pad2+swatch_w+swatch_gap,row_mid),lb,font=leg_font,anchor="lm",fill=(20,20,20))
+    # Title/subtitle
+    title="Plog-status: "+TARGET_NAME
+    sub=f"{len(segments)} seg. < {RADIUS_M} m · sist 13.11"
+    # Use DejaVuSans with 30% larger font (15pt vs default ~11.5pt)
+    ft=ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 15)
+    fs=ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 15)
+    tb=d.textbbox((0,0),title,font=ft); tw,th=tb[2]-tb[0],tb[3]-tb[1]
+    sb=d.textbbox((0,0),sub,font=fs); sw,sh=sb[2]-sb[0],sb[3]-sb[1]
+    pad=12
+    box_x0,box_y0=pad,pad
+    box_x1=pad+max(tw,sw)+pad*2
+    box_y1=pad+th+sh+pad*2
+    d.rectangle([box_x0,box_y0,box_x1,box_y1],fill=(255,255,255),outline=(20,20,20),width=2)
+    # Center both lines horizontally on cx_box and vertically as a group on cy_box
+    cx_box=(box_x0+box_x1)//2
+    cy_box=(box_y0+box_y1)//2
+    gap=4
+    total_h=th+gap+sh
+    content_top=box_y0+(box_y1-box_y0-total_h)//2
+    title_cy=content_top+th//2
+    sub_cy=content_top+th+gap+sh//2
+    d.text((cx_box,title_cy),title,font=ft,anchor="mm",fill=(10,10,10))
+    d.text((cx_box,sub_cy),sub,font=fs,anchor="mm",fill=(40,40,40))
+
+    # Legend (in a box matching the top-left style: white bg, black border) — TOP RIGHT
+    leg=[((226,28,28),"Ikke pløyd nylig (>12t)"),
+         ((48,110,230),"Pløyd siste 12t"),
+         ((40,190,70),"Pløyd siste 4t")]
+    leg_font=ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 15)
+    leg_widths=[d.textbbox((0,0),lb,font=leg_font)[2] for (clr,lb) in leg]
+    max_label_w=max(leg_widths)
+    swatch_w=16; swatch_gap=8; pad2=12
+    row_h=22; line_gap=4
+    content_w=swatch_w+swatch_gap+max_label_w
+    content_h=len(leg)*row_h+(len(leg)-1)*line_gap
+    bx1=IMG_W-pad
+    by0=pad
+    bx0=bx1-(content_w+pad2*2)
+    by1=by0+content_h+pad2*2
+    d.rectangle([bx0,by0,bx1,by1],fill=(255,255,255),outline=(20,20,20),width=2)
+    for i,(clr,lb) in enumerate(leg):
+        row_top=by0+pad2+i*(row_h+line_gap)
+        row_mid=row_top+row_h//2
+        d.line([(bx0+pad2,row_mid),(bx0+pad2+swatch_w,row_mid)],fill=clr,width=5)
+        d.text((bx0+pad2+swatch_w+swatch_gap,row_mid),lb,font=leg_font,anchor="lm",fill=(20,20,20))
 
     base.save(out_path)
     print(f"  saved {out_path} ({IMG_W}x{IMG_H})")
