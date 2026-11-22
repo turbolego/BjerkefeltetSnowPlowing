@@ -219,12 +219,7 @@ def render_map(segments, out_path="plowmap.png"):
         row_mid=row_top+row_h//2
         d.line([(bx0+pad2,row_mid),(bx0+pad2+swatch_w,row_mid)],fill=clr,width=5)
         d.text((bx0+pad2+swatch_w+swatch_gap,row_mid),lb,font=ft,anchor="lm",fill=(20,20,20))
-    
-    # Attribution
-    a="© OSM-contributorer | PlogNorge"; ab=d.textbbox((0,0),a,font=ft); aw=ab[2]-ab[0]
-    d.rectangle([IMG_W-aw-12,IMG_H-32,IMG_W-4,IMG_H-12],fill=(255,255,255),outline=(20,20,20),width=1)
-    d.text((IMG_W-aw-8,IMG_H-26),a,font=ft,fill=(70,70,70))
-    
+
     base.save(out_path)
     print(f"  saved {out_path} ({IMG_W}x{IMG_H})")
     return out_path
