@@ -83,12 +83,15 @@ def is_real_tile(data):
     try:
         im=Image.open(io.BytesIO(data))
         if im.size!=(256,256): return False
+        if im.mode == 'P':
+            im = im.convert('RGB')
         pix=list(im.getdata())
         if len(pix) < 100: return False
         # pixel variance heuristic: blocked/placeholder tiles are near-uniform
+        # OpenTopoMap tiles have more uniform areas, so use lower threshold
         import statistics as st
         var=st.pvariance([sum(p)//3 for p in pix])
-        return var > 800
+        return var > 100
     except Exception:
         return False
 
