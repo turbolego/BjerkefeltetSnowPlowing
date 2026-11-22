@@ -253,7 +253,7 @@ def build_post_text(near: list[dict]) -> str:
 
     lines += [
         f"Kart: {PLOGNOR_BASE}/{CITY}?groupId={STATUS_GROUP_ID}",
-        "#plogging #bærum #bjerkefeltet #snø #vintervedlikehold",
+        "#Brøyteweb #bærum #bjerkefeltet #snø #vintervedlikehold",
     ]
     return "\n".join(lines)
 

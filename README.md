@@ -58,7 +58,7 @@ Status thresholds (from PlogNorge `GetStatusGroups`):
 
 Kart: https://mobiwinqa.bmsystem.se/PlogNorge/baerum?groupId=80
 
-#plogging #bærum #bjerkefeltet #snø #wintermaintenance
+#Brøyteweb #bærum #bjerkefeltet #snø #vintervedlikehold
 ```
 
 ## Setup
