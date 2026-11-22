@@ -1,6 +1,7 @@
-name: Bjerkefeltet Snow Plow Bot
+name: Snow Plow Bot
 
 on:
+  # Cron times are UTC. Adjust to your area's season / preferred frequency.
   # Winter (Nov-Mar, CET = UTC+1): run 4x/day to catch plow passes.
   # Spring/Autumn (Oct, Apr): run once a day.
   schedule:
@@ -21,7 +22,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
-      - name: Set up Python 3.11
+      - name: Set up Python
         uses: actions/setup-python@v7
         with:
           python-version: "3.15"
@@ -45,18 +46,15 @@ jobs:
             python plowbot.py --dry-run
           fi
 
-      - name: Regenerate map image
-        run: |
-          python render_map.py
-
       - name: Commit updated map to main (triggers GitHub Pages)
         run: |
+          MAP=$(python -c "from config import load_config; print(load_config().map_output)")
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add plowmap.png
+          git add "$MAP"
           if git diff --cached --quiet; then
-            echo "No changes to plowmap.png — skipping commit."
+            echo "No changes to $MAP — skipping commit."
           else
-            git commit -m "Update plowmap.png (auto)" 
+            git commit -m "Update $MAP (auto)"
             git push origin main
           fi

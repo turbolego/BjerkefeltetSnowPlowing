@@ -1,0 +1,44 @@
+# ---------------------------------------------------------------------------
+# Snow Plow Bot configuration
+#
+# Fork the repository, edit this file to point at your own address, add the
+# BSKY_HANDLE / BSKY_PASSWORD secrets, and the bot will post plow status for
+# your area. See README.md for the list of PlogNorge areas and status groups.
+# ---------------------------------------------------------------------------
+
+[location]
+# Human-readable name used in the post text and image alt text.
+name = "Bjerkehaugen 6, Lommedalen (Bærum)"
+# WGS84 coordinates of the address (e.g. right-click in Google Maps / norgeskart.no).
+latitude = 59.9636663
+longitude = 10.4678833
+# Road segments whose geometry comes within this many metres are reported.
+radius_m = 150
+# Ignore segments closer than this (0 = include everything).
+min_distance_m = 5
+
+[plognorge]
+base_url = "https://mobiwinqa.bmsystem.se/PlogNorge"
+# Area slug from the PlogNorge URL, e.g. "baerum", "trondheim", "bergen".
+area = "baerum"
+# Status group from the URL (?groupId=...). Remove to use the area's first group.
+# List the groups for an area with:  python plowbot.py --list-groups
+status_group_id = 80
+
+[post]
+# Hashtags appended to the Bluesky post (without the leading '#').
+hashtags = ["Brøyteweb", "bærum", "bjerkefeltet", "snø", "vintervedlikehold"]
+# Time zone PlogNorge timestamps are reported in.
+timezone = "Europe/Oslo"
+
+[map]
+output = "plowmap.png"
+size_px = 600
+# Tile zoom level. "auto" picks the closest zoom that still fits radius_m.
+zoom = 17
+# XYZ raster tile server. Respect the server's tile usage policy.
+tile_url = "https://tile.opentopomap.org/{z}/{x}/{y}.png"
+# Attribution text drawn on the map (required by most tile licences).
+attribution = "© OpenStreetMap-bidragsytere, © OpenTopoMap (CC-BY-SA)"
+# Optional path to a .ttf font. Empty = auto-detect a system font.
+font = ""

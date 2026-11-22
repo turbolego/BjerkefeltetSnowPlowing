@@ -3,3 +3,4 @@ Pillow>=10.0
 python-dotenv>=1.0
 atproto>=0.0.70
 cryptography>=48.0.1
+tomli>=2.0; python_version < "3.11"

@@ -1,11 +1,11 @@
 [tool.poetry]
-name = "bjerkefeltet-snow-plow-bot"
+name = "snow-plow-bot"
 version = "1.0.0"
-description = "Monitors snow plow activity near Bjerkehaugen 6 and posts updates to Bluesky"
+description = "Configurable template bot that monitors PlogNorge snow plow activity near an address and posts updates to Bluesky"
 authors = ["Turbolego <turbolego@gmail.com>"]
 license = "MIT"
 readme = "README.md"
-keywords = ["snow", "plow", "bjerkefeltet", "baerum", "bluesky"]
+keywords = ["snow", "plow", "plognorge", "template", "bluesky"]
 
 [tool.poetry.dependencies]
 python = "^3.11"
