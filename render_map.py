@@ -178,47 +178,50 @@ def render_map(segments, out_path="plowmap.png"):
     d.ellipse([cx-4,cy-4,cx+4,cy+4],fill=(20,20,20))
     
     # Title/subtitle
-    title="Plog-status: "+TARGET_NAME
-    sub=f"{len(segments)} seg. < {RADIUS_M} m · sist 13.11"
-    ft=ImageFont.load_default(); fs=ImageFont.load_default()
-    tb=d.textbbox((0,0),title,font=ft); tw,th=tb[2]-tb[0],tb[3]-tb[1]
-    sb=d.textbbox((0,0),sub,font=fs); sw,sh=sb[2]-sb[0],sb[3]-sb[1]
-    pad=12
-    box_x0,box_y0=pad,pad
-    box_x1=pad+max(tw,sw)+pad*2
-    box_y1=pad+th+sh+pad*2
-    d.rectangle([box_x0,box_y0,box_x1,box_y1],fill=(255,255,255),outline=(20,20,20),width=2)
-    # Center both lines horizontally on cx_box and vertically as a group on cy_box
-    cx_box=(box_x0+box_x1)//2
-    cy_box=(box_y0+box_y1)//2
-    gap=4
-    total_h=th+gap+sh
-    content_top=box_y0+(box_y1-box_y0-total_h)//2
-    title_cy=content_top+th//2
-    sub_cy=content_top+th+gap+sh//2
-    d.text((cx_box,title_cy),title,font=ft,anchor="mm",fill=(10,10,10))
-    d.text((cx_box,sub_cy),sub,font=fs,anchor="mm",fill=(40,40,40))
-    
-    # Legend (in a box matching the top-left style: white bg, black border) — TOP RIGHT
-    leg=[((226,28,28),"Ikke pløyd nylig (>12t)"),
-         ((48,110,230),"Pløyd siste 12t"),
-         ((40,190,70),"Pløyd siste 4t")]
-    leg_widths=[d.textbbox((0,0),lb,font=ft)[2] for (clr,lb) in leg]
-    max_label_w=max(leg_widths)
-    swatch_w=16; swatch_gap=8; pad2=12
-    row_h=22; line_gap=4
-    content_w=swatch_w+swatch_gap+max_label_w
-    content_h=len(leg)*row_h+(len(leg)-1)*line_gap
-    bx1=IMG_W-pad
-    by0=pad
-    bx0=bx1-(content_w+pad2*2)
-    by1=by0+content_h+pad2*2
-    d.rectangle([bx0,by0,bx1,by1],fill=(255,255,255),outline=(20,20,20),width=2)
-    for i,(clr,lb) in enumerate(leg):
-        row_top=by0+pad2+i*(row_h+line_gap)
-        row_mid=row_top+row_h//2
-        d.line([(bx0+pad2,row_mid),(bx0+pad2+swatch_w,row_mid)],fill=clr,width=5)
-        d.text((bx0+pad2+swatch_w+swatch_gap,row_mid),lb,font=ft,anchor="lm",fill=(20,20,20))
+        title="Plog-status: "+TARGET_NAME
+        sub=f"{len(segments)} seg. < {RADIUS_M} m · sist 13.11"
+        # Use DejaVuSans with 30% larger font (15pt vs default ~11.5pt)
+        ft=ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 15)
+        fs=ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 15)
+        tb=d.textbbox((0,0),title,font=ft); tw,th=tb[2]-tb[0],tb[3]-tb[1]
+        sb=d.textbbox((0,0),sub,font=fs); sw,sh=sb[2]-sb[0],sb[3]-sb[1]
+        pad=12
+        box_x0,box_y0=pad,pad
+        box_x1=pad+max(tw,sw)+pad*2
+        box_y1=pad+th+sh+pad*2
+        d.rectangle([box_x0,box_y0,box_x1,box_y1],fill=(255,255,255),outline=(20,20,20),width=2)
+        # Center both lines horizontally on cx_box and vertically as a group on cy_box
+        cx_box=(box_x0+box_x1)//2
+        cy_box=(box_y0+box_y1)//2
+        gap=4
+        total_h=th+gap+sh
+        content_top=box_y0+(box_y1-box_y0-total_h)//2
+        title_cy=content_top+th//2
+        sub_cy=content_top+th+gap+sh//2
+        d.text((cx_box,title_cy),title,font=ft,anchor="mm",fill=(10,10,10))
+        d.text((cx_box,sub_cy),sub,font=fs,anchor="mm",fill=(40,40,40))
+
+        # Legend (in a box matching the top-left style: white bg, black border) — TOP RIGHT
+        leg=[((226,28,28),"Ikke pløyd nylig (>12t)"),
+             ((48,110,230),"Pløyd siste 12t"),
+             ((40,190,70),"Pløyd siste 4t")]
+        leg_font=ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 15)
+        leg_widths=[d.textbbox((0,0),lb,font=leg_font)[2] for (clr,lb) in leg]
+        max_label_w=max(leg_widths)
+        swatch_w=16; swatch_gap=8; pad2=12
+        row_h=22; line_gap=4
+        content_w=swatch_w+swatch_gap+max_label_w
+        content_h=len(leg)*row_h+(len(leg)-1)*line_gap
+        bx1=IMG_W-pad
+        by0=pad
+        bx0=bx1-(content_w+pad2*2)
+        by1=by0+content_h+pad2*2
+        d.rectangle([bx0,by0,bx1,by1],fill=(255,255,255),outline=(20,20,20),width=2)
+        for i,(clr,lb) in enumerate(leg):
+            row_top=by0+pad2+i*(row_h+line_gap)
+            row_mid=row_top+row_h//2
+            d.line([(bx0+pad2,row_mid),(bx0+pad2+swatch_w,row_mid)],fill=clr,width=5)
+            d.text((bx0+pad2+swatch_w+swatch_gap,row_mid),lb,font=leg_font,anchor="lm",fill=(20,20,20))
 
     base.save(out_path)
     print(f"  saved {out_path} ({IMG_W}x{IMG_H})")
