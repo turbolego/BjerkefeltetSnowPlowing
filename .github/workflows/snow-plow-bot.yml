@@ -10,6 +10,14 @@ on:
     # Spring/Autumn: 08:00 CET daily
     - cron: "5 7 * 4,5,9,10 *"
   workflow_dispatch:
+    inputs:
+      force_post:
+        description: >
+          Post to Bluesky regardless of whether any road segment changed
+          (debug). Overrides [post].post_on_changes_only for this run only.
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: write
@@ -37,13 +45,20 @@ jobs:
           BSKY_HANDLE: ${{ secrets.BSKY_HANDLE }}
           BSKY_PASSWORD: ${{ secrets.BSKY_PASSWORD }}
         run: |
+          # Optional manual-run override: post even if no segment changed.
+          # Empty (and false) on schedule runs -> normal change-detection.
+          FORCE=""
+          if [ "${{ github.event.inputs.force_post }}" = "true" ]; then
+            FORCE="--force-post"
+            echo "force_post override active: will post regardless of segment changes."
+          fi
           # If no Bluesky secrets are set, run a dry-run so the job
           # still succeeds and logs the would-be post.
           if [ -n "$BSKY_HANDLE" ] && [ -n "$BSKY_PASSWORD" ]; then
-            python plowbot.py
+            python plowbot.py $FORCE
           else
             echo "No BSKY_HANDLE/BSKY_PASSWORD secrets set; dry-run only."
-            python plowbot.py --dry-run
+            python plowbot.py --dry-run $FORCE
           fi
 
       - name: Commit updated map + state to main (triggers GitHub Pages)

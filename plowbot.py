@@ -15,6 +15,7 @@ Run modes:
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import io
 import json
 import logging
@@ -463,6 +464,9 @@ def main() -> int:
                     help="Fetch + print, never send (alias of --dry-run)")
     ap.add_argument("--list-groups", action="store_true",
                     help="List the status groups for the configured area and exit")
+    ap.add_argument("--force-post", action="store_true",
+                    help="Post to Bluesky even if no road segment changed "
+                         "(overrides [post].post_on_changes_only; for debugging)")
     args = ap.parse_args()
 
     try:
@@ -470,6 +474,11 @@ def main() -> int:
     except (OSError, ValueError, KeyError) as e:
         logging.error("Invalid configuration: %s", e)
         return 2
+
+    if args.force_post:
+        cfg = dataclasses.replace(cfg, post_on_changes_only=False)
+        logging.info("--force-post: ignoring post_on_changes_only; "
+                     "will post even if nothing changed")
 
     if args.list_groups:
         return list_groups(cfg)
