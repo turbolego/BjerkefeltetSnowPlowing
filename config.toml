@@ -27,7 +27,7 @@ status_group_id = 80
 
 [post]
 # Hashtags appended to the Bluesky post (without the leading '#').
-hashtags = ["Brøyteweb", "bærum", "bjerkefeltet", "snø", "vintervedlikehold"]
+hashtags = ["PlogNorge", "Brøyteweb", "bærum", "bjerkefeltet", "snø", "vintervedlikehold"]
 # Time zone PlogNorge timestamps are reported in.
 timezone = "Europe/Oslo"
 # Only post to Bluesky if at least one road segment in the selected area has

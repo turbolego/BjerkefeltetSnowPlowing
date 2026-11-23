@@ -381,29 +381,49 @@ def encode_image_for_bluesky(image_path: str) -> bytes:
 
 
 def build_richtext_facets(text: str) -> list:
-    """Build AT Protocol richtext facets so that #hashtags are clickable.
+    """Build AT Protocol richtext facets so #hashtags and URLs are clickable.
 
-    Bluesky does *not* auto-detect hashtags in post text - the client must
-    annotate each '#tag' with an ``app.bsky.richtext.facet`` whose ``ByteSlice``
-    index points at the tag in **UTF-8 bytes** (not characters). Without this
-    the hashtags render as plain, non-clickable text.
+    Bluesky does *not* auto-detect hashtags or links in post text - the client
+    must annotate each span with an ``app.bsky.richtext.facet`` whose
+    ``ByteSlice`` index points at the span in **UTF-8 bytes** (not characters).
+    Without this, hashtags and URLs render as plain, non-clickable text.
+
+    Hashtags become ``Tag`` facets; http(s) URLs become ``Link`` facets.
     """
     from atproto import models
+    R = models.AppBskyRichtextFacet
 
-    facets = []
+    entries: list[tuple[int, int, object]] = []
+
+    def span(ch_start: int, ch_end: int) -> tuple[int, int]:
+        return (len(text[:ch_start].encode("utf-8")),
+                len(text[:ch_end].encode("utf-8")))
+
+    # Hashtags -> Tag facets
     for m in re.finditer(r"#\w+", text):
-        start_char, end_char = m.start(), m.end()
-        byte_start = len(text[:start_char].encode("utf-8"))
-        byte_end = len(text[:end_char].encode("utf-8"))
-        tag = text[start_char + 1 : end_char]  # without the leading '#'
-        facets.append(
-            models.AppBskyRichtextFacet.Main(
-                features=[models.AppBskyRichtextFacet.Tag(tag=tag)],
-                index=models.AppBskyRichtextFacet.ByteSlice(
-                    byte_start=byte_start, byte_end=byte_end
-                ),
-            )
-        )
+        bs, be = span(m.start(), m.end())
+        tag = text[m.start() + 1:m.end()]  # without the leading '#'
+        entries.append((bs, be, R.Main(
+            features=[R.Tag(tag=tag)],
+            index=R.ByteSlice(byte_start=bs, byte_end=be),
+        )))
+    # URLs -> Link facets
+    for m in re.finditer(r"https?://\S+", text):
+        bs, be = span(m.start(), m.end())
+        entries.append((bs, be, R.Main(
+            features=[R.Link(uri=text[m.start():m.end()])],
+            index=R.ByteSlice(byte_start=bs, byte_end=be),
+        )))
+
+    # Facets must be ordered and non-overlapping (the AT Protocol rejects
+    # overlapping ranges).
+    entries.sort(key=lambda e: (e[0], e[1]))
+    facets, last_end = [], -1
+    for bs, be, facet in entries:
+        if bs < last_end:
+            continue
+        facets.append(facet)
+        last_end = be
     return facets
 
 
