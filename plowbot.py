@@ -291,13 +291,13 @@ def segments_near_target(cfg: Config, all_segments: list[dict]) -> list[dict]:
 
 
 def get_latest_event_time(cfg: Config, segments: list[dict]) -> str:
-    """'Siste hendelse: Fredag 13 November 2026 kl. 07:37' (local time)."""
+    """'Fredag 13 November 2026 kl. 07:37' (local time)."""
     visits = [s["last_visit"] for s in segments if s.get("last_visit")]
     if not visits:
-        return "Siste hendelse: Ingen data"
+        return "Ingen data"
     t = max(visits).astimezone(cfg.tz)
     return (
-        f"Siste hendelse: {NORWEGIAN_WEEKDAYS[t.weekday()]} {t.day} "
+        f"{NORWEGIAN_WEEKDAYS[t.weekday()]} {t.day} "
         f"{NORWEGIAN_MONTHS[t.month - 1]} {t.year} kl. {t.hour:02d}:{t.minute:02d}"
     )
 
