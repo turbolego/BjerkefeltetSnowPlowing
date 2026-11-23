@@ -379,6 +379,33 @@ def encode_image_for_bluesky(image_path: str) -> bytes:
     return buf.getvalue()
 
 
+def build_richtext_facets(text: str) -> list:
+    """Build AT Protocol richtext facets so that #hashtags are clickable.
+
+    Bluesky does *not* auto-detect hashtags in post text - the client must
+    annotate each '#tag' with an ``app.bsky.richtext.facet`` whose ``ByteSlice``
+    index points at the tag in **UTF-8 bytes** (not characters). Without this
+    the hashtags render as plain, non-clickable text.
+    """
+    from atproto import models
+
+    facets = []
+    for m in re.finditer(r"#\w+", text):
+        start_char, end_char = m.start(), m.end()
+        byte_start = len(text[:start_char].encode("utf-8"))
+        byte_end = len(text[:end_char].encode("utf-8"))
+        tag = text[start_char + 1 : end_char]  # without the leading '#'
+        facets.append(
+            models.AppBskyRichtextFacet.Main(
+                features=[models.AppBskyRichtextFacet.Tag(tag=tag)],
+                index=models.AppBskyRichtextFacet.ByteSlice(
+                    byte_start=byte_start, byte_end=byte_end
+                ),
+            )
+        )
+    return facets
+
+
 def post_to_bluesky(text: str, image_path: str | None = None,
                     alt_text: str = "") -> bool:
     if not BSKY_HANDLE or not BSKY_PASSWORD:
@@ -388,9 +415,10 @@ def post_to_bluesky(text: str, image_path: str | None = None,
 
     client = Client()
     client.login(BSKY_HANDLE.strip(), BSKY_PASSWORD.strip())
+    facets = build_richtext_facets(text)
 
     if not image_path:
-        client.send_post(text)
+        client.send_post(text, facets=facets)
         logging.info("Posted text to Bluesky as %s", BSKY_HANDLE)
         return True
 
@@ -400,6 +428,7 @@ def post_to_bluesky(text: str, image_path: str | None = None,
         record=models.AppBskyFeedPost.Record(
             text=text,
             created_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            facets=facets,
             embed=models.AppBskyEmbedImages.Main(
                 images=[models.AppBskyEmbedImages.Image(image=blob, alt=alt_text)]
             ),
